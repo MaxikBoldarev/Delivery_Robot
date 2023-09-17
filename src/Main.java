@@ -5,12 +5,37 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException {
 
+        List<Thread> threads = new ArrayList<>();
+
         String[] routes = new String[1000];
+
         for (int i = 0; i < routes.length; i++) {
             routes[i] = generateRoute("RLRFR", 100);
         }
 
-        List<Thread> threads = new ArrayList<>();
+        Thread threadPrint = new Thread(() -> {
+            synchronized (sizeToFreq) {
+                while (!Thread.interrupted()) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    int maxValue = 0;
+                    int maxKey = 0;
+                    for (Integer key : sizeToFreq.keySet()) {
+                        if (sizeToFreq.get(key) > maxValue) {
+                            maxValue = sizeToFreq.get(key);
+                            maxKey = key;
+                        }
+                    }
+                    System.out.println("Самое частое количество повторений "
+                            + maxKey + " (встретилость "
+                            + maxValue + " раз)");
+                }
+            }
+        });
+        threadPrint.start();
 
         for (String route : routes) {
             Thread thread = new Thread(() -> {
@@ -20,20 +45,24 @@ public class Main {
                         numberOfRoute++;
                     }
                 }
-                synchronized (numberOfRoute) {
+                synchronized (sizeToFreq) {
                     if (sizeToFreq.containsKey(numberOfRoute)) {
                         sizeToFreq.put(numberOfRoute, sizeToFreq.get(numberOfRoute) + 1);
                     } else {
                         sizeToFreq.put(numberOfRoute, 1);
                     }
+                    sizeToFreq.notify();
                 }
             });
             threads.add(thread);
-            thread.start();
+
         }
         for (Thread thread : threads) {
+            thread.start();
             thread.join();
+            thread.interrupt();
         }
+        threadPrint.interrupt();
 
         int maxValue = 0;
         int maxKey = 0;
@@ -43,10 +72,6 @@ public class Main {
                 maxKey = key;
             }
         }
-
-        System.out.println("Самое частое количество повторений "
-                + maxKey + " (встретилость "
-                + maxValue + " раз)\n");
 
         System.out.println("Другие размеры:");
         for (Integer key : sizeToFreq.keySet()) {
